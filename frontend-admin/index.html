@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoadSense Fleet — Admin Dashboard</title>
+    <meta name="description" content="RoadSense Fleet admin dashboard for monitoring Chennai's road infrastructure">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <span class="brand-icon">🛣️</span>
+            <div>
+                <h1 class="brand-name">RoadSense</h1>
+                <span class="brand-sub">Fleet · Chennai</span>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="index.html" class="nav-item active" data-page="dashboard">
+                <span class="nav-icon">📊</span>
+                <span>Dashboard</span>
+            </a>
+            <a href="live.html" class="nav-item" data-page="live">
+                <span class="nav-icon">📹</span>
+                <span>Live Monitoring</span>
+            </a>
+            <a href="events.html" class="nav-item" data-page="events">
+                <span class="nav-icon">🔔</span>
+                <span>Events</span>
+                <span class="nav-badge" id="navEventCount">0</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="server-status" id="serverStatus">
+                <span class="status-dot connecting"></span>
+                <span>Connecting...</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <header class="topbar">
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <h2 class="page-title">Dashboard</h2>
+            <div class="topbar-right">
+                <div class="device-indicator" id="deviceIndicator">
+                    <span class="status-dot online"></span>
+                    <span id="activeDeviceCount">0</span> devices online
+                </div>
+                <div class="topbar-time" id="topbarTime"></div>
+            </div>
+        </header>
+
+        <!-- KPI Cards -->
+        <section class="kpi-grid">
+            <div class="kpi-card kpi-total">
+                <div class="kpi-icon">📋</div>
+                <div class="kpi-data">
+                    <div class="kpi-value" id="kpiTotal">0</div>
+                    <div class="kpi-label">Total Events</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-pothole">
+                <div class="kpi-icon">🕳️</div>
+                <div class="kpi-data">
+                    <div class="kpi-value" id="kpiPotholes">0</div>
+                    <div class="kpi-label">Potholes</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-damage">
+                <div class="kpi-icon">⚠️</div>
+                <div class="kpi-data">
+                    <div class="kpi-value" id="kpiDamage">0</div>
+                    <div class="kpi-label">Road Damage</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-vehicle">
+                <div class="kpi-icon">🚗</div>
+                <div class="kpi-data">
+                    <div class="kpi-value" id="kpiVehicles">0</div>
+                    <div class="kpi-label">Vehicles</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-waterlog">
+                <div class="kpi-icon">🌊</div>
+                <div class="kpi-data">
+                    <div class="kpi-value" id="kpiWaterlogging">0</div>
+                    <div class="kpi-label">Waterlogging</div>
+                </div>
+            </div>
+            <div class="kpi-card kpi-devices">
+                <div class="kpi-icon">📱</div>
+                <div class="kpi-data">
+                    <div class="kpi-value" id="kpiDevices">0</div>
+                    <div class="kpi-label">Active Devices</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Map + Recent Events -->
+        <section class="dashboard-grid">
+            <div class="card map-card">
+                <div class="card-header">
+                    <h3>📍 Event Map — Chennai</h3>
+                    <span class="card-badge" id="mapEventCount">0 markers</span>
+                </div>
+                <div id="dashboardMap" class="map-container"></div>
+            </div>
+
+            <div class="card recent-card">
+                <div class="card-header">
+                    <h3>🔴 Recent Incidents</h3>
+                    <a href="events.html" class="card-link">View all →</a>
+                </div>
+                <div class="recent-list" id="recentList">
+                    <div class="empty-state">
+                        <span class="empty-icon">📭</span>
+                        <p>No incidents detected yet</p>
+                        <p class="empty-sub">Start streaming from a device to see detections here</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Charts -->
+        <section class="charts-grid">
+            <div class="card">
+                <div class="card-header"><h3>📊 Detections by Type</h3></div>
+                <div class="chart-container">
+                    <canvas id="chartByType"></canvas>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h3>📈 Severity Distribution</h3></div>
+                <div class="chart-container">
+                    <canvas id="chartBySeverity"></canvas>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="map.js"></script>
+    <script src="charts.js"></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>

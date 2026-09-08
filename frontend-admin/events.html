@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoadSense Fleet — Events</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <span class="brand-icon">🛣️</span>
+            <div>
+                <h1 class="brand-name">RoadSense</h1>
+                <span class="brand-sub">Fleet · Chennai</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="index.html" class="nav-item"><span class="nav-icon">📊</span><span>Dashboard</span></a>
+            <a href="live.html" class="nav-item"><span class="nav-icon">📹</span><span>Live Monitoring</span></a>
+            <a href="events.html" class="nav-item active"><span class="nav-icon">🔔</span><span>Events</span></a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="server-status" id="serverStatus">
+                <span class="status-dot connecting"></span><span>Connecting...</span>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <header class="topbar">
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <h2 class="page-title">🔔 Event Management</h2>
+            <div class="topbar-right">
+                <span id="eventTotal" style="color:var(--text-muted);font-size:13px;">0 events</span>
+                <div class="topbar-time" id="topbarTime"></div>
+            </div>
+        </header>
+
+        <!-- Filters -->
+        <div class="events-toolbar">
+            <select class="filter-select" id="filterType" onchange="applyFilters()">
+                <option value="">All Types</option>
+                <option value="pothole">Pothole</option>
+                <option value="road_damage">Road Damage</option>
+                <option value="crack">Crack</option>
+                <option value="waterlogging">Waterlogging</option>
+            </select>
+            <select class="filter-select" id="filterSeverity" onchange="applyFilters()">
+                <option value="">All Severities</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+            </select>
+            <select class="filter-select" id="filterDevice" onchange="applyFilters()">
+                <option value="">All Devices</option>
+            </select>
+            <select class="filter-select" id="filterStatus" onchange="applyFilters()">
+                <option value="">All Status</option>
+                <option value="new">New</option>
+                <option value="reviewed">Reviewed</option>
+                <option value="resolved">Resolved</option>
+            </select>
+        </div>
+
+        <!-- Events Grid -->
+        <div class="events-grid" id="eventsGrid">
+            <div class="empty-state" style="grid-column: 1/-1;">
+                <span class="empty-icon">📭</span>
+                <p>Loading events...</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Event Modal -->
+    <div class="modal-overlay" id="eventModal">
+        <div class="modal" id="eventModalContent"></div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="events.js"></script>
+</body>
+</html>

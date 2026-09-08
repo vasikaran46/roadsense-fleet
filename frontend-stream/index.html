@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RoadSense Fleet — Mobile Stream</title>
+    <meta name="description" content="Stream live road video from your mobile device to the RoadSense Fleet monitoring system">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-brand">
+                <span class="logo-icon">📡</span>
+                <h1>RoadSense</h1>
+            </div>
+            <div class="connection-badge" id="connectionBadge">
+                <span class="status-dot offline"></span>
+                <span id="connectionText">Disconnected</span>
+            </div>
+        </header>
+
+        <!-- Setup Panel (shown before streaming) -->
+        <div class="setup-panel" id="setupPanel">
+            <div class="setup-card">
+                <h2>📱 Device Setup</h2>
+                <p class="setup-desc">Configure your mobile device to stream road video to the RoadSense Fleet system.</p>
+
+                <div class="form-group">
+                    <label for="serverUrl">Server URL</label>
+                    <input type="text" id="serverUrl" placeholder="ws://192.168.1.100:8000" value="">
+                </div>
+
+                <div class="form-group">
+                    <label for="deviceId">Device / Bus ID</label>
+                    <input type="text" id="deviceId" placeholder="e.g., MTC-001" value="MTC-001" maxlength="50">
+                </div>
+
+                <div class="form-group">
+                    <label for="deviceName">Device Name</label>
+                    <input type="text" id="deviceName" placeholder="e.g., Route 21G Anna Nagar" value="Route 21G Anna Nagar" maxlength="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="cameraSelect">Camera</label>
+                    <select id="cameraSelect">
+                        <option value="environment">Rear Camera (Road-facing)</option>
+                        <option value="user">Front Camera</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="demoMode"> 
+                        Demo Mode (use video file instead of camera)
+                    </label>
+                    <input type="file" id="demoVideo" accept="video/*" style="display:none; margin-top: 8px;">
+                </div>
+
+                <button class="btn-primary" id="startBtn" onclick="startStreaming()">
+                    🎥 Start Streaming
+                </button>
+            </div>
+        </div>
+
+        <!-- Streaming Panel (shown during streaming) -->
+        <div class="stream-panel" id="streamPanel" style="display: none;">
+            <!-- Camera Preview -->
+            <div class="video-container">
+                <video id="videoPreview" autoplay playsinline muted></video>
+                <canvas id="captureCanvas" style="display: none;"></canvas>
+
+                <!-- Overlay Info -->
+                <div class="video-overlay-top">
+                    <span class="overlay-badge" id="overlayDeviceId">MTC-001</span>
+                    <span class="overlay-badge recording" id="overlayRecording">● REC</span>
+                </div>
+                <div class="video-overlay-bottom">
+                    <span class="overlay-badge" id="overlayGps">📍 Acquiring GPS...</span>
+                    <span class="overlay-badge" id="overlayFps">0 FPS</span>
+                </div>
+            </div>
+
+            <!-- Status Cards -->
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="status-label">Connection</div>
+                    <div class="status-value" id="statusConnection">
+                        <span class="status-dot offline"></span> Connecting...
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="status-label">GPS</div>
+                    <div class="status-value" id="statusGps">📍 Acquiring...</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-label">Frames Sent</div>
+                    <div class="status-value" id="statusFrames">0</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-label">Streaming</div>
+                    <div class="status-value" id="statusDuration">00:00</div>
+                </div>
+            </div>
+
+            <!-- Latest Detection (if any) -->
+            <div class="detection-card" id="detectionCard" style="display: none;">
+                <h3>🔍 Latest Detection</h3>
+                <div id="detectionInfo"></div>
+            </div>
+
+            <!-- Stop Button -->
+            <button class="btn-danger" onclick="stopStreaming()">
+                ⏹ Stop Streaming
+            </button>
+        </div>
+
+        <!-- Error Toast -->
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <script src="stream-client.js"></script>
+</body>
+</html>

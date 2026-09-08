@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoadSense Fleet — Live Monitoring</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <span class="brand-icon">🛣️</span>
+            <div>
+                <h1 class="brand-name">RoadSense</h1>
+                <span class="brand-sub">Fleet · Chennai</span>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="index.html" class="nav-item" data-page="dashboard">
+                <span class="nav-icon">📊</span><span>Dashboard</span>
+            </a>
+            <a href="live.html" class="nav-item active" data-page="live">
+                <span class="nav-icon">📹</span><span>Live Monitoring</span>
+            </a>
+            <a href="events.html" class="nav-item" data-page="events">
+                <span class="nav-icon">🔔</span><span>Events</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="server-status" id="serverStatus">
+                <span class="status-dot connecting"></span>
+                <span>Connecting...</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="topbar">
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <h2 class="page-title">📹 Live Monitoring</h2>
+            <div class="topbar-right">
+                <div class="topbar-time" id="topbarTime"></div>
+            </div>
+        </header>
+
+        <div class="live-layout">
+            <!-- Device List Panel -->
+            <div class="device-list-panel">
+                <div class="device-list-header">
+                    📱 Devices <span id="deviceCountLabel" style="float:right; color:var(--text-muted); font-weight:400;">0 online</span>
+                </div>
+                <div class="device-list" id="deviceList">
+                    <div class="empty-state" style="padding:30px 16px;">
+                        <span class="empty-icon" style="font-size:32px;">📡</span>
+                        <p>No devices connected</p>
+                        <p class="empty-sub">Start streaming from a mobile device</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Viewer Panel -->
+            <div class="live-viewer-panel">
+                <div class="live-video-container" id="liveVideoContainer">
+                    <canvas id="liveCanvas" style="display:none;"></canvas>
+                    <div class="live-video-placeholder" id="videoPlaceholder">
+                        <span style="font-size:48px;">📹</span>
+                        <p>Select a device to view its live stream</p>
+                    </div>
+                </div>
+
+                <!-- Live Detections Feed -->
+                <div class="live-detections">
+                    <div class="live-detections-header">
+                        <span>🔍 Live Detections</span>
+                        <span id="detectionCount" style="color:var(--text-muted);font-size:12px;">0</span>
+                    </div>
+                    <div id="liveDetectionsList">
+                        <div class="empty-state" style="padding:20px;">
+                            <p class="empty-sub">Detections will appear here in real-time</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="live-view.js"></script>
+</body>
+</html>
