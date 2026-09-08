@@ -1,36 +1,33 @@
-"""
-RoadSense Fleet - Health Check API
-"""
+"""RoadSense Fleet - Health API"""
 
 from fastapi import APIRouter
-from backend.app.config import settings
 
-router = APIRouter(tags=["Health"])
+from app.config import settings
+
+router = APIRouter()
 
 
 @router.get("/health")
 async def health_check():
-    """System health check endpoint."""
-    import os
-
-    models_status = {}
-    for name, path_attr in [
-        ("pothole", settings.POTHOLE_MODEL_PATH),
-        ("road_damage", settings.ROAD_DAMAGE_MODEL_PATH),
-        ("vehicle", settings.VEHICLE_MODEL_PATH),
-    ]:
-        full_path = settings.get_model_path(path_attr)
-        models_status[name] = {
-            "path": str(path_attr),
-            "loaded": full_path.exists(),
-        }
-
     return {
         "status": "healthy",
         "service": "RoadSense Fleet",
         "version": "1.0.0",
         "city": "Chennai",
-        "models": models_status,
+        "models": {
+            "pothole": {
+                "path": settings.POTHOLE_MODEL_PATH,
+                "loaded": settings.get_model_path(settings.POTHOLE_MODEL_PATH).exists(),
+            },
+            "road_damage": {
+                "path": settings.ROAD_DAMAGE_MODEL_PATH,
+                "loaded": settings.get_model_path(settings.ROAD_DAMAGE_MODEL_PATH).exists(),
+            },
+            "vehicle": {
+                "path": settings.VEHICLE_MODEL_PATH,
+                "loaded": settings.get_model_path(settings.VEHICLE_MODEL_PATH).exists(),
+            },
+        },
         "config": {
             "frame_process_interval": settings.FRAME_PROCESS_INTERVAL,
             "detection_confidence": settings.DETECTION_CONFIDENCE,

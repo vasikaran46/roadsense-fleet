@@ -3,8 +3,8 @@
  * Fetches stats, manages real-time event WebSocket, updates KPIs.
  */
 
-const API_BASE = window.location.protocol + '//' + window.location.hostname + ':8000';
-const WS_BASE = 'ws://' + window.location.hostname + ':8000';
+const API_BASE = window.location.origin;
+const WS_BASE = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host;
 
 let eventSocket = null;
 let deviceRefreshTimer = null;
@@ -44,7 +44,6 @@ async function fetchStats() {
         document.getElementById('kpiVehicles').textContent =
             (data.by_type?.car || 0) + (data.by_type?.bus || 0) +
             (data.by_type?.truck || 0) + (data.by_type?.motorcycle || 0);
-        document.getElementById('kpiWaterlogging').textContent = data.by_type?.waterlogging || 0;
 
         // Update event badge in nav
         document.getElementById('navEventCount').textContent = data.total_events || 0;
@@ -158,9 +157,13 @@ function renderRecentEvents(events) {
         pothole: '🕳️',
         road_damage: '⚠️',
         crack: '⚠️',
-        longitudinal_crack: '⚠️',
-        transverse_crack: '⚠️',
-        alligator_crack: '⚠️',
+        longitudinal_crack: '⚡',
+        transverse_crack: '⚡',
+        lateral_crack: '⚡',
+        alligator_crack: '🐊',
+        edge_crack: '⚠️',
+        traffic_sign: '🛑',
+        zebra_crossing: '🚶',
         waterlogging: '🌊',
         car: '🚗',
         bus: '🚌',
@@ -308,5 +311,15 @@ function updateServerStatus(status) {
 }
 
 function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    sidebar.classList.toggle('open');
+    if (overlay) overlay.classList.toggle('active');
+}
+
+function closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('active');
 }

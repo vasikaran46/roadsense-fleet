@@ -43,9 +43,8 @@ document.getElementById('demoVideo').addEventListener('change', function(e) {
 
 // Auto-detect server URL
 (function autoDetectServer() {
-    const host = window.location.hostname || 'localhost';
-    const port = '8000';
-    document.getElementById('serverUrl').value = `ws://${host}:${port}`;
+    const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    document.getElementById('serverUrl').value = `${wsProto}//${window.location.host}`;
 })();
 
 

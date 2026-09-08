@@ -1,179 +1,187 @@
 """
 RoadSense Fleet - Frame Processor
-Orchestrates AI inference on incoming video frames with throttling.
+Orchestrates AI detection pipeline on received frames:
+  - Local YOLOv8 for continuous real-time vehicle detection at full stream frame rate.
+  - Multi-workflow Roboflow (Road Damage, Traffic Signs, Zebra Crossing) executing
+    in decoupled background tasks with configurable sampling interval and zero stream freezing.
 """
 
-import logging
 import asyncio
-from typing import List, Optional
+from concurrent.futures import ThreadPoolExecutor
+import logging
+import time
+from typing import Dict, List, Optional
 
 import cv2
 import numpy as np
 
-from backend.app.ai import Detection
-from backend.app.ai.pothole_detector import PotholeDetector
-from backend.app.ai.road_damage_detector import RoadDamageDetector
-from backend.app.ai.vehicle_detector import VehicleDetector
-from backend.app.ai.waterlogging_heuristic import WaterloggingHeuristic
-from backend.app.services.snapshot_service import save_snapshot
-from backend.app.services.event_service import create_event
-from backend.app.services.stream_manager import stream_manager
-from backend.app.config import settings
+from app.ai import Detection
+from app.ai.pothole_detector import PotholeDetector
+from app.ai.road_damage_detector import RoadDamageDetector
+from app.ai.roboflow_detector import RoboflowDetector
+from app.ai.vehicle_detector import VehicleDetector
+from app.services.snapshot_service import save_snapshot
+from app.services.event_service import create_event
+from app.services.stream_manager import stream_manager
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Road hazard and urban safety classes that trigger event creation
+HAZARD_CLASSES = {
+    "pothole",
+    "road_damage",
+    "crack",
+    "longitudinal_crack",
+    "transverse_crack",
+    "alligator_crack",
+    "edge_crack",
+    "lateral_crack",
+    "traffic_sign",
+    "zebra_crossing",
+}
+
 
 class FrameProcessor:
-    """Runs AI detectors on frames, creates snapshots and events."""
+    """Runs AI detection on incoming frames with decoupled remote workflow execution."""
 
     def __init__(self):
-        logger.info("Initializing AI detectors...")
         self.pothole_detector = PotholeDetector()
         self.road_damage_detector = RoadDamageDetector()
         self.vehicle_detector = VehicleDetector()
-        self.waterlogging_heuristic = WaterloggingHeuristic()
-
-        self._processing = False
+        self.roboflow_detector = RoboflowDetector()
+        self.last_roboflow_time: Dict[str, float] = {}
+        self._roboflow_busy: Dict[str, bool] = {}
+        self.executor = ThreadPoolExecutor(max_workers=4)
         logger.info(
-            f"Frame processor ready. Available detectors: "
-            f"pothole={self.pothole_detector.is_available}, "
-            f"road_damage={self.road_damage_detector.is_available}, "
-            f"vehicle={self.vehicle_detector.is_available}, "
-            f"waterlogging={self.waterlogging_heuristic.is_available}"
+            "Frame processor initialized (vehicle=local_yolo, road_damage/signs/zebra=roboflow_multi_workflow)"
         )
 
-    def get_status(self) -> dict:
-        """Get detector availability status."""
-        return {
-            "pothole": self.pothole_detector.is_available,
-            "road_damage": self.road_damage_detector.is_available,
-            "vehicle": self.vehicle_detector.is_available,
-            "waterlogging": self.waterlogging_heuristic.is_available,
-        }
-
-    async def process_frame(self, device_id: str, frame_bytes: bytes) -> List[dict]:
-        """
-        Decode and process a frame through all detectors.
-        Creates snapshots and events for valid detections.
-        Returns list of created event dicts.
-        """
-        if self._processing:
-            return []  # Skip if already processing
-
-        self._processing = True
+    def _run_local_detectors(self, frame: np.ndarray) -> List[Detection]:
+        """Run local fast detectors synchronously in thread pool."""
+        all_detections = []
         try:
-            # Decode JPEG frame
-            nparr = np.frombuffer(frame_bytes, np.uint8)
-            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            all_detections.extend(self.vehicle_detector.detect(frame))
+        except Exception as e:
+            logger.error(f"Vehicle detector error: {e}")
 
-            if frame is None:
-                logger.warning(f"Failed to decode frame from {device_id}")
-                return []
+        # Fallback local detectors only when Roboflow is offline or disabled
+        if not self.roboflow_detector.enabled:
+            try:
+                all_detections.extend(self.pothole_detector.detect(frame))
+            except Exception as e:
+                logger.error(f"Pothole detector fallback error: {e}")
 
-            # Run all detectors concurrently via thread pool
+            try:
+                all_detections.extend(self.road_damage_detector.detect(frame))
+            except Exception as e:
+                logger.error(f"Road damage detector fallback error: {e}")
+
+        return all_detections
+
+    async def _run_roboflow_background(
+        self,
+        frame: np.ndarray,
+        device_id: str,
+        latitude: Optional[float],
+        longitude: Optional[float],
+    ):
+        """Asynchronously execute multi-workflow Roboflow inference in the background."""
+        try:
             loop = asyncio.get_event_loop()
-            all_detections = await loop.run_in_executor(
-                None, self._run_detectors, frame
+            roboflow_dets = await loop.run_in_executor(
+                self.executor, self.roboflow_detector.detect_all, frame
             )
 
-            if not all_detections:
+            if not roboflow_dets:
+                return
+
+            significant = [
+                d for d in roboflow_dets
+                if d.class_name in HAZARD_CLASSES or d.confidence >= 0.50
+            ]
+
+            if significant:
+                snapshot_path = save_snapshot(frame, significant, device_id)
+                for det in significant:
+                    if det.class_name in HAZARD_CLASSES:
+                        event_data = create_event(
+                            device_id=device_id,
+                            detection=det,
+                            snapshot_path=snapshot_path,
+                            latitude=latitude,
+                            longitude=longitude,
+                        )
+                        if event_data:
+                            await stream_manager.broadcast_event(event_data)
+
+        except Exception as e:
+            logger.error(f"Background Roboflow inference error for {device_id}: {e}")
+        finally:
+            self._roboflow_busy[device_id] = False
+
+    async def process_frame(
+        self,
+        frame_bytes: bytes,
+        device_id: str,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+    ) -> List[Detection]:
+        """Process a frame through the AI pipeline. Completely non-blocking for live streams."""
+        try:
+            # Decode JPEG
+            nparr = np.frombuffer(frame_bytes, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if frame is None:
                 return []
 
-            # Get device GPS
-            lat, lon = stream_manager.get_device_gps(device_id)
+            # 1. Run local YOLO vehicle detection immediately (non-blocking for video stream)
+            loop = asyncio.get_event_loop()
+            detections = await loop.run_in_executor(
+                self.executor, self._run_local_detectors, frame
+            )
 
-            # Process road-hazard detections (create events + snapshots)
-            # Vehicle detections are counted but don't create individual events
-            created_events = []
-            road_hazards = [
-                d for d in all_detections
-                if d.detector_source != "vehicle_yolo"
-            ]
-            vehicle_detections = [
-                d for d in all_detections
-                if d.detector_source == "vehicle_yolo"
-            ]
+            # 2. Check Roboflow sampling throttle and dispatch non-blocking background inference
+            if self.roboflow_detector.enabled:
+                now = time.time()
+                last_time = self.last_roboflow_time.get(device_id, 0.0)
+                is_busy = self._roboflow_busy.get(device_id, False)
 
-            # Create events for road hazards
-            for detection in road_hazards:
-                snapshot_file = await loop.run_in_executor(
-                    None, save_snapshot, frame, [detection]
-                )
-
-                if snapshot_file:
-                    event_data = create_event(
-                        device_id=device_id,
-                        detection=detection,
-                        snapshot_filename=snapshot_file,
-                        latitude=lat,
-                        longitude=lon,
+                if not is_busy and (now - last_time >= settings.ROBOFLOW_INTERVAL_SECONDS):
+                    self._roboflow_busy[device_id] = True
+                    self.last_roboflow_time[device_id] = now
+                    # Launch background task on latest frame without delaying stream
+                    asyncio.create_task(
+                        self._run_roboflow_background(
+                            frame.copy(), device_id, latitude, longitude
+                        )
                     )
 
-                    if event_data:
-                        created_events.append(event_data)
-                        # Push to admin viewers in real-time
-                        await stream_manager.broadcast_event(event_data)
-                        await stream_manager.broadcast_detection_to_viewers(
-                            device_id, event_data
+            # 3. Handle any significant local detections (e.g. vehicles or offline fallback)
+            significant = [
+                d for d in detections
+                if d.class_name in HAZARD_CLASSES or d.confidence >= 0.60
+            ]
+
+            if significant:
+                snapshot_path = save_snapshot(frame, significant, device_id)
+                for det in significant:
+                    if det.class_name in HAZARD_CLASSES:
+                        event_data = create_event(
+                            device_id=device_id,
+                            detection=det,
+                            snapshot_path=snapshot_path,
+                            latitude=latitude,
+                            longitude=longitude,
                         )
+                        if event_data:
+                            await stream_manager.broadcast_event(event_data)
 
-            # Create a single vehicle count event periodically (not per-vehicle)
-            if vehicle_detections:
-                vehicle_summary = self._summarize_vehicles(vehicle_detections)
-                # Broadcast vehicle count to viewers but don't create DB events for each
-                await stream_manager.broadcast_detection_to_viewers(
-                    device_id,
-                    {
-                        "type": "vehicle_count",
-                        "data": vehicle_summary,
-                        "device_id": device_id,
-                    },
-                )
-
-            return created_events
+            return detections
 
         except Exception as e:
             logger.error(f"Frame processing error: {e}")
             return []
-        finally:
-            self._processing = False
-
-    def _run_detectors(self, frame: np.ndarray) -> List[Detection]:
-        """Run all detectors synchronously (called from thread pool)."""
-        all_detections = []
-
-        # Pothole detection
-        try:
-            all_detections.extend(self.pothole_detector.detect(frame))
-        except Exception as e:
-            logger.error(f"Pothole detector failed: {e}")
-
-        # Road damage detection
-        try:
-            all_detections.extend(self.road_damage_detector.detect(frame))
-        except Exception as e:
-            logger.error(f"Road damage detector failed: {e}")
-
-        # Vehicle detection
-        try:
-            all_detections.extend(self.vehicle_detector.detect(frame))
-        except Exception as e:
-            logger.error(f"Vehicle detector failed: {e}")
-
-        # Waterlogging heuristic
-        try:
-            all_detections.extend(self.waterlogging_heuristic.detect(frame))
-        except Exception as e:
-            logger.error(f"Waterlogging heuristic failed: {e}")
-
-        return all_detections
-
-    def _summarize_vehicles(self, detections: List[Detection]) -> dict:
-        """Summarize vehicle detections into counts by type."""
-        counts = {}
-        for d in detections:
-            counts[d.class_name] = counts.get(d.class_name, 0) + 1
-        return counts
 
 
 # Singleton

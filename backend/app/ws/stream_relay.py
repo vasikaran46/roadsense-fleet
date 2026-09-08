@@ -1,93 +1,77 @@
 """
 RoadSense Fleet - Stream Relay WebSocket
-Relays a device's video stream to admin viewers.
-Also provides a global event notification WebSocket.
+Relays live video to admin viewers and pushes detection events.
 """
 
-import logging
 import json
+import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from backend.app.services.stream_manager import stream_manager
+from app.services.stream_manager import stream_manager
 
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
 
 
 @router.websocket("/ws/watch/{device_id}")
-async def stream_watch(websocket: WebSocket, device_id: str):
-    """
-    Admin connects here to watch a specific device's live stream.
-    Receives:
-    - Binary messages: JPEG frames relayed from the device
-    - Text messages: JSON detection notifications
-    """
+async def watch_stream(websocket: WebSocket, device_id: str):
+    """Admin watches a device's live stream."""
     await websocket.accept()
     logger.info(f"Admin viewer connected for device: {device_id}")
 
-    # Subscribe to this device's stream
-    await stream_manager.subscribe_viewer(device_id, websocket)
+    stream_manager.subscribe_viewer(device_id, websocket)
 
-    # Send initial device info
-    device_info = stream_manager.get_device_info(device_id)
-    if device_info:
+    # Send device info if available
+    if device_id in stream_manager.devices:
+        state = stream_manager.devices[device_id]
         await websocket.send_text(json.dumps({
             "type": "device_info",
-            "data": device_info,
-        }))
-    else:
-        await websocket.send_text(json.dumps({
-            "type": "error",
-            "message": f"Device {device_id} is not currently streaming",
+            "data": {
+                "device_id": device_id,
+                "name": state.get("name", ""),
+                "frame_count": state.get("frame_count", 0),
+            }
         }))
 
     try:
-        # Keep connection alive and listen for admin commands
         while True:
-            data = await websocket.receive_text()
-            # Admin could send commands like "ping"
+            # Keep connection alive — listen for pings
+            msg = await websocket.receive_text()
             try:
-                msg = json.loads(data)
-                if msg.get("type") == "ping":
+                data = json.loads(msg)
+                if data.get("type") == "ping":
                     await websocket.send_text(json.dumps({"type": "pong"}))
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, KeyError):
                 pass
-
     except WebSocketDisconnect:
-        logger.info(f"Admin viewer disconnected for {device_id}")
+        logger.info(f"Admin viewer disconnected from {device_id}")
     except Exception as e:
-        logger.error(f"Admin viewer error for {device_id}: {e}")
+        logger.error(f"Watch error: {e}")
     finally:
-        await stream_manager.unsubscribe_viewer(device_id, websocket)
+        stream_manager.unsubscribe_viewer(device_id, websocket)
 
 
 @router.websocket("/ws/events")
-async def event_stream(websocket: WebSocket):
-    """
-    Admin dashboard connects here to receive real-time event notifications.
-    All new detection events are pushed through this WebSocket.
-    """
+async def event_feed(websocket: WebSocket):
+    """Admin subscribes to real-time detection events."""
     await websocket.accept()
-    logger.info("Admin event stream connected")
+    logger.info("Admin event subscriber connected")
 
-    await stream_manager.subscribe_events(websocket)
+    stream_manager.subscribe_events(websocket)
 
     try:
         while True:
-            # Keep alive — listen for pings
-            data = await websocket.receive_text()
+            msg = await websocket.receive_text()
             try:
-                msg = json.loads(data)
-                if msg.get("type") == "ping":
+                data = json.loads(msg)
+                if data.get("type") == "ping":
                     await websocket.send_text(json.dumps({"type": "pong"}))
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, KeyError):
                 pass
-
     except WebSocketDisconnect:
-        logger.info("Admin event stream disconnected")
+        logger.info("Admin event subscriber disconnected")
     except Exception as e:
-        logger.error(f"Admin event stream error: {e}")
+        logger.error(f"Event feed error: {e}")
     finally:
-        await stream_manager.unsubscribe_events(websocket)
+        stream_manager.unsubscribe_events(websocket)

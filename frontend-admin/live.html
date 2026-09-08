@@ -16,6 +16,7 @@
                 <h1 class="brand-name">RoadSense</h1>
                 <span class="brand-sub">Fleet · Chennai</span>
             </div>
+            <button class="sidebar-close-btn" onclick="closeSidebar()" aria-label="Close menu">✕</button>
         </div>
         <nav class="sidebar-nav">
             <a href="index.html" class="nav-item" data-page="dashboard">
@@ -86,6 +87,9 @@
             </div>
         </div>
     </main>
+
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
     <div class="toast-container" id="toastContainer"></div>
 

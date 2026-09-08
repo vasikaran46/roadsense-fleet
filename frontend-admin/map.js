@@ -18,7 +18,11 @@ const MARKER_COLORS = {
     crack: '#f59e0b',
     longitudinal_crack: '#f59e0b',
     transverse_crack: '#f59e0b',
+    lateral_crack: '#f59e0b',
     alligator_crack: '#f59e0b',
+    edge_crack: '#f59e0b',
+    traffic_sign: '#3b82f6',
+    zebra_crossing: '#8b5cf6',
     waterlogging: '#06b6d4',
     car: '#10b981',
     bus: '#10b981',
@@ -29,6 +33,13 @@ const MARKER_ICONS = {
     pothole: '🕳️',
     road_damage: '⚠️',
     crack: '⚠️',
+    longitudinal_crack: '⚡',
+    transverse_crack: '⚡',
+    lateral_crack: '⚡',
+    alligator_crack: '🐊',
+    edge_crack: '⚠️',
+    traffic_sign: '🛑',
+    zebra_crossing: '🚶',
     waterlogging: '🌊',
 };
 
@@ -42,11 +53,14 @@ function initDashboardMap() {
         scrollWheelZoom: true,
     }).setView(CHENNAI_CENTER, MAP_ZOOM);
 
-    // Dark-themed tile layer
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap contributors © CARTO',
-        maxZoom: 19,
-    }).addTo(dashMap);
+    // OpenStreetMap tile layer
+    L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            attribution: "&copy; OpenStreetMap contributors",
+            maxZoom: 19
+        }
+    ).addTo(dashMap);
 
     markerLayer = L.layerGroup().addTo(dashMap);
 

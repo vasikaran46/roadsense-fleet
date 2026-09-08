@@ -1,32 +1,32 @@
-"""
-RoadSense Fleet - Events API
-List, filter, and retrieve detection events.
-"""
+"""RoadSense Fleet - Events API"""
 
+import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import desc
+from sqlalchemy import func, desc
 
-from backend.app.database.database import get_db
-from backend.app.database.models import Event
+from app.database.database import get_db
+from app.database.models import Event
+from app.config import settings
 
-router = APIRouter(prefix="/events", tags=["Events"])
+logger = logging.getLogger(__name__)
+router = APIRouter()
 
 
-@router.get("")
+@router.get("/events")
 async def list_events(
-    device_id: Optional[str] = Query(None),
-    detection_type: Optional[str] = Query(None),
-    severity: Optional[str] = Query(None),
-    status: Optional[str] = Query(None),
+    device_id: Optional[str] = None,
+    detection_type: Optional[str] = None,
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    """List events with optional filters."""
     query = db.query(Event)
-
     if device_id:
         query = query.filter(Event.device_id == device_id)
     if detection_type:
@@ -40,63 +40,101 @@ async def list_events(
     events = query.order_by(desc(Event.timestamp)).offset(offset).limit(limit).all()
 
     return {
-        "events": [e.to_dict() for e in events],
+        "events": [_event_to_dict(e) for e in events],
         "total": total,
         "limit": limit,
         "offset": offset,
     }
 
 
-@router.get("/stats")
+@router.get("/events/stats")
 async def event_stats(db: Session = Depends(get_db)):
-    """Get aggregated event statistics for dashboard."""
-    from sqlalchemy import func
-
     total = db.query(Event).count()
 
-    by_type = (
-        db.query(Event.detection_type, func.count(Event.id))
-        .group_by(Event.detection_type)
-        .all()
-    )
-    type_counts = {t: c for t, c in by_type}
+    by_type = {}
+    type_counts = db.query(Event.detection_type, func.count()).group_by(Event.detection_type).all()
+    for dt, count in type_counts:
+        by_type[dt] = count
 
-    by_severity = (
-        db.query(Event.severity, func.count(Event.id))
-        .group_by(Event.severity)
-        .all()
-    )
-    severity_counts = {s: c for s, c in by_severity}
+    by_severity = {}
+    sev_counts = db.query(Event.severity, func.count()).group_by(Event.severity).all()
+    for sev, count in sev_counts:
+        by_severity[sev] = count
 
-    by_device = (
-        db.query(Event.device_id, func.count(Event.id))
-        .group_by(Event.device_id)
-        .all()
-    )
-    device_counts = {d: c for d, c in by_device}
+    by_device = {}
+    dev_counts = db.query(Event.device_id, func.count()).group_by(Event.device_id).all()
+    for dev, count in dev_counts:
+        by_device[dev] = count
 
-    # Recent events (last 10)
-    recent = (
-        db.query(Event)
-        .order_by(desc(Event.timestamp))
-        .limit(10)
-        .all()
-    )
+    recent = db.query(Event).order_by(desc(Event.timestamp)).limit(20).all()
 
     return {
         "total_events": total,
-        "by_type": type_counts,
-        "by_severity": severity_counts,
-        "by_device": device_counts,
-        "recent_events": [e.to_dict() for e in recent],
+        "by_type": by_type,
+        "by_severity": by_severity,
+        "by_device": by_device,
+        "recent_events": [_event_to_dict(e) for e in recent],
     }
 
 
-@router.get("/{event_id}")
+@router.get("/events/{event_id}")
 async def get_event(event_id: int, db: Session = Depends(get_db)):
-    """Get a single event by ID."""
     event = db.query(Event).filter(Event.id == event_id).first()
     if not event:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Event not found")
-    return event.to_dict()
+    return _event_to_dict(event)
+
+
+@router.delete("/events/{event_id}")
+async def delete_event(event_id: int, db: Session = Depends(get_db)):
+    """Delete a single event by ID and remove its snapshot image."""
+    event = db.query(Event).filter(Event.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if event.snapshot_path:
+        try:
+            snapshot_file = settings.get_snapshot_dir() / event.snapshot_path
+            if snapshot_file.exists():
+                snapshot_file.unlink()
+        except Exception as ex:
+            logger.warning(f"Could not remove snapshot file {event.snapshot_path}: {ex}")
+
+    db.delete(event)
+    db.commit()
+    logger.info(f"Event #{event_id} deleted")
+    return {"status": "deleted", "id": event_id}
+
+
+@router.delete("/events")
+async def clear_all_events(db: Session = Depends(get_db)):
+    """Clear all events from the database."""
+    events = db.query(Event).all()
+    count = len(events)
+    for ev in events:
+        if ev.snapshot_path:
+            try:
+                snapshot_file = settings.get_snapshot_dir() / ev.snapshot_path
+                if snapshot_file.exists():
+                    snapshot_file.unlink()
+            except Exception:
+                pass
+        db.delete(ev)
+    db.commit()
+    logger.info(f"Cleared {count} events")
+    return {"status": "cleared", "deleted_count": count}
+
+
+def _event_to_dict(e: Event) -> dict:
+    return {
+        "id": e.id,
+        "device_id": e.device_id,
+        "detection_type": e.detection_type,
+        "confidence": e.confidence,
+        "severity": e.severity,
+        "latitude": e.latitude,
+        "longitude": e.longitude,
+        "snapshot_path": e.snapshot_path,
+        "status": e.status,
+        "timestamp": e.timestamp.isoformat() if e.timestamp else None,
+    }

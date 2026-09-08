@@ -3,8 +3,8 @@
  * Manages device selection, live video stream, and detection display.
  */
 
-const API_BASE = window.location.protocol + '//' + window.location.hostname + ':8000';
-const WS_BASE = 'ws://' + window.location.hostname + ':8000';
+const API_BASE = window.location.origin;
+const WS_BASE = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host;
 
 let watchSocket = null;
 let selectedDeviceId = null;
@@ -215,6 +215,9 @@ function renderDetections() {
 
     const iconMap = {
         pothole: '🕳️', road_damage: '⚠️', crack: '⚠️',
+        longitudinal_crack: '⚡', transverse_crack: '⚡',
+        lateral_crack: '⚡', alligator_crack: '🐊', edge_crack: '⚠️',
+        traffic_sign: '🛑', zebra_crossing: '🚶',
         waterlogging: '🌊', car: '🚗', bus: '🚌',
         truck: '🚛', motorcycle: '🏍️', person: '🚶',
     };
@@ -278,5 +281,15 @@ function updateServerStatus(status) {
 }
 
 function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    sidebar.classList.toggle('open');
+    if (overlay) overlay.classList.toggle('active');
+}
+
+function closeSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    if (sidebar) sidebar.classList.remove('open');
+    if (overlay) overlay.classList.remove('active');
 }

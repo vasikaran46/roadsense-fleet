@@ -19,6 +19,7 @@
                 <h1 class="brand-name">RoadSense</h1>
                 <span class="brand-sub">Fleet · Chennai</span>
             </div>
+            <button class="sidebar-close-btn" onclick="closeSidebar()" aria-label="Close menu">✕</button>
         </div>
 
         <nav class="sidebar-nav">
@@ -90,13 +91,6 @@
                     <div class="kpi-label">Vehicles</div>
                 </div>
             </div>
-            <div class="kpi-card kpi-waterlog">
-                <div class="kpi-icon">🌊</div>
-                <div class="kpi-data">
-                    <div class="kpi-value" id="kpiWaterlogging">0</div>
-                    <div class="kpi-label">Waterlogging</div>
-                </div>
-            </div>
             <div class="kpi-card kpi-devices">
                 <div class="kpi-icon">📱</div>
                 <div class="kpi-data">
@@ -148,13 +142,16 @@
         </section>
     </main>
 
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-    <script src="map.js"></script>
-    <script src="charts.js"></script>
-    <script src="dashboard.js"></script>
+    <script src="map.js?v=2"></script>
+    <script src="charts.js?v=2"></script>
+    <script src="dashboard.js?v=2"></script>
 </body>
 </html>

@@ -1,0 +1,41 @@
+# Render deployment configuration
+# https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: roadsense-fleet
+    runtime: python
+    plan: free
+    buildCommand: |
+      cd backend && pip install -r requirements.txt
+    startCommand: |
+      cd backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: CORS_ORIGINS
+        value: "*"
+      - key: DETECTION_CONFIDENCE
+        value: "0.40"
+      - key: EVENT_COOLDOWN_SECONDS
+        value: "5"
+      - key: FRAME_PROCESS_INTERVAL
+        value: "5"
+      - key: JPEG_QUALITY
+        value: "70"
+      - key: ROBOFLOW_API_KEY
+        sync: false
+      - key: ROBOFLOW_WORKSPACE
+        value: "vasikaran-a"
+      - key: ROBOFLOW_ROAD_DAMAGE_WORKFLOW
+        value: "general-segmentation-api"
+      - key: ROBOFLOW_TRAFFIC_SIGN_WORKFLOW
+        value: "general-segmentation-api-2"
+      - key: ROBOFLOW_ZEBRA_CROSSING_WORKFLOW
+        value: "general-segmentation-api-3"
+      - key: ROBOFLOW_INTERVAL_SECONDS
+        value: "2.0"
+      # DATABASE_URL is set automatically when you attach
+      # a Render PostgreSQL instance to this service.
+      # If not attached, it falls back to SQLite (ephemeral on Render).

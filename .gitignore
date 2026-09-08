@@ -18,11 +18,12 @@ env/
 *.db
 *.sqlite3
 
-# Models (large files)
-backend/models/*.pt
-backend/models/*.onnx
+# AI Models — ignore optional models but KEEP yolov8n.pt (required for vehicle detection)
+backend/models/pothole_yolov8.pt
+backend/models/road_damage.pt
+# DO NOT ignore backend/models/yolov8n.pt — it is required for deployment
 
-# Uploads
+# Uploads (ephemeral on Render)
 backend/uploads/snapshots/*
 !backend/uploads/snapshots/.gitkeep
 
@@ -39,3 +40,6 @@ desktop.ini
 
 # Logs
 *.log
+
+# Node (if any)
+node_modules/

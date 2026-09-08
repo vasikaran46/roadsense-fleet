@@ -1,41 +1,45 @@
-"""
-RoadSense Fleet - Devices API
-"""
+"""RoadSense Fleet - Devices API"""
 
+import logging
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from backend.app.database.database import get_db
-from backend.app.database.models import Device
+from app.database.database import get_db
+from app.database.models import Device
 
-router = APIRouter(prefix="/devices", tags=["Devices"])
+logger = logging.getLogger(__name__)
+router = APIRouter()
 
 
-@router.get("")
+@router.get("/devices")
 async def list_devices(db: Session = Depends(get_db)):
-    """List all known devices with their status."""
-    # Merge DB records with live stream manager state
-    from backend.app.services.stream_manager import stream_manager
+    """List all registered devices with live status."""
+    from app.services.stream_manager import stream_manager
 
     db_devices = db.query(Device).all()
-    db_device_map = {d.device_id: d.to_dict() for d in db_devices}
+    devices = []
+    for d in db_devices:
+        is_online = d.device_id in stream_manager.devices
+        devices.append({
+            "device_id": d.device_id,
+            "name": d.name,
+            "status": "online" if is_online else "offline",
+            "latitude": d.latitude,
+            "longitude": d.longitude,
+            "last_seen": d.last_seen.isoformat() if d.last_seen else None,
+        })
 
-    # Add live connection info
-    live_devices = stream_manager.get_all_devices()
-    for dev_id, live_info in live_devices.items():
-        if dev_id in db_device_map:
-            db_device_map[dev_id]["status"] = "online"
-            db_device_map[dev_id]["latitude"] = live_info.get("latitude")
-            db_device_map[dev_id]["longitude"] = live_info.get("longitude")
-            db_device_map[dev_id]["last_seen"] = live_info.get("last_seen")
-        else:
-            db_device_map[dev_id] = {
+    # Also include any streaming devices not yet in DB
+    for dev_id in stream_manager.devices:
+        if not any(d["device_id"] == dev_id for d in devices):
+            state = stream_manager.devices[dev_id]
+            devices.append({
                 "device_id": dev_id,
-                "name": live_info.get("name", dev_id),
+                "name": state.get("name", dev_id),
                 "status": "online",
-                "latitude": live_info.get("latitude"),
-                "longitude": live_info.get("longitude"),
-                "last_seen": live_info.get("last_seen"),
-            }
+                "latitude": state.get("latitude"),
+                "longitude": state.get("longitude"),
+                "last_seen": None,
+            })
 
-    return {"devices": list(db_device_map.values()), "count": len(db_device_map)}
+    return {"devices": devices, "count": len(devices)}
